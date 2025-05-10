@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const authRoutes = require("./routes/auth");
+const projectRoutes = require ('./routes/project')
 
 
 const app = express();
@@ -24,6 +25,8 @@ mongoose
 
 // Routes
 app.use("/api/users", authRoutes);
+app.use("/api/projects", projectRoutes);
+
 
 //Example
 app.get("/", (req, res) => {

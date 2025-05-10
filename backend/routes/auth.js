@@ -1,22 +1,24 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const verifyToken = require('../middleware/auth'); 
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
+const verifyToken = require("../middleware/auth");
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// REGISTER API 
-router.post('/register', async (req, res) => {
+// REGISTER API
+router.post("/register", async (req, res) => {
   const { name, email, password, role } = req.body;
-  console.log("Received:", req.body);
+  if (!name || !email || !password || !role) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
+
+  if (!["supervisor", "technician"].includes(role)) {
+    return res.status(400).json({ message: "Invalid role" });
+  }
 
   try {
-    if (!["supervisor", "technician"].includes(role)) {
-      return res.status(400).json({ message: "Invalid role" });
-    }
-
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(409).json({ message: "Email already exists" });
@@ -28,17 +30,16 @@ router.post('/register', async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role
+      role,
     });
 
     const savedUser = await newUser.save();
-    console.log("User saved:", savedUser);
 
-    // Create JWT token
+    // JWT token
     const token = jwt.sign(
       { id: newUser._id, role: newUser.role },
       JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: "1h" }
     );
 
     res.status(201).json({
@@ -47,8 +48,8 @@ router.post('/register', async (req, res) => {
       user: {
         id: newUser._id,
         name: newUser.name,
-        role: newUser.role
-      }
+        role: newUser.role,
+      },
     });
   } catch (err) {
     console.error("Registration error:", err);
@@ -56,9 +57,12 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// LOGIN API 
-router.post('/login', async (req, res) => {
+// LOGIN API
+router.post("/login", async (req, res) => {
   const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password are required" });
+  }
 
   try {
     const user = await User.findOne({ email });
@@ -71,15 +75,14 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '1h' }
-    );
+    // JWT token
+    const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
     res.json({
       message: "Login successful",
-      token
+      token,
     });
   } catch (err) {
     console.error("Login error:", err);
@@ -87,21 +90,23 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.get('/profile', verifyToken, (req, res) => {
+// Profile Route
+router.get("/profile", verifyToken, (req, res) => {
   res.json({
-    message: 'Welcome to your profile',
-    user: req.user 
+    message: "Welcome to your profile",
+    user: req.user,
   });
 });
 
-router.get('/admin-dashboard', verifyToken, (req, res) => {
-  if (req.user.role !== 'supervisor') {
-    return res.status(403).json({ message: 'Access denied. Admins only.' });
+// Admin Dashboard Route (for supervisors only)
+router.get("/admin-dashboard", verifyToken, (req, res) => {
+  if (req.user.role !== "supervisor") {
+    return res.status(403).json({ message: "Access denied. Admins only." });
   }
 
   res.json({
-    message: 'Welcome to the admin dashboard',
-    user: req.user
+    message: "Welcome to the admin dashboard",
+    user: req.user,
   });
 });
 
