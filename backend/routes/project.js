@@ -7,14 +7,10 @@ const User = require("../models/User");
 // Supervisor - create project
 router.post("/", verifyToken, async (req, res) => {
   if (req.user.role !== "supervisor") {
-    return res
-      .status(403)
-      .json({ message: "Only supervisor can create project" });
+    return res.status(403).json({ message: "Only supervisor can create project" });
   }
 
-  const { name, description, type, assignedTo, status, duration, budget } =
-    req.body;
-  console.log("User:", req.user);
+  const { name, description, type, assignedTo, status, duration, budget } = req.body;
 
   try {
     const project = new Project({
@@ -31,51 +27,47 @@ router.post("/", verifyToken, async (req, res) => {
     await project.save();
     res.status(201).json({ message: "Project created successfully", project });
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Error creating project", error: err.message });
+    res.status(500).json({ message: "Error creating project", error: err.message });
   }
 });
 
 // Technician - view assigned projects
 router.get("/my-projects", verifyToken, async (req, res) => {
   if (req.user.role !== "technician") {
-    return res
-      .status(403)
-      .json({ message: "Only technician can view projects" });
+    return res.status(403).json({ message: "Only technician can view projects" });
   }
 
   try {
-    const projects = await Project.find({ assignedTo: req.user.id });
+    const projects = await Project.find({ assignedTo: req.user.id })
+      .populate("createdBy", "username email")
+      .populate("assignedTo", "username email");
+
     res.json({ projects });
   } catch (err) {
-    res.status(500).json({ message: "Error fetching projects" });
+    res.status(500).json({ message: "Error fetching projects", error: err.message });
   }
 });
 
-// Supervisor - view all created projects (dashboard)
+// Supervisor - view all created projects
 router.get("/dashboard", verifyToken, async (req, res) => {
   if (req.user.role !== "supervisor") {
-    return res
-      .status(403)
-      .json({ message: "Only supervisor can view dashboard" });
+    return res.status(403).json({ message: "Only supervisor can view dashboard" });
   }
 
   try {
-    const projects = await Project.find({
-      createdBy: req.user.id,
-    }).populate("assignedTo", "username");
+    const projects = await Project.find({ createdBy: req.user.id })
+      .populate("assignedTo", "username email");
+
     res.json({ projects });
   } catch (err) {
-    res.status(500).json({ message: "Error fetching dashboard projects" });
+    res.status(500).json({ message: "Error fetching dashboard projects", error: err.message });
   }
 });
-// Add member to project using email (Supervisor only)
+
+// Supervisor - Add technician to project
 router.post("/:projectId/add-member", verifyToken, async (req, res) => {
   if (req.user.role !== "supervisor") {
-    return res
-      .status(403)
-      .json({ message: "Only supervisors can add members to projects" });
+    return res.status(403).json({ message: "Only supervisors can add members to projects" });
   }
 
   const { email } = req.body;
@@ -89,9 +81,7 @@ router.post("/:projectId/add-member", verifyToken, async (req, res) => {
     }
 
     if (user.role !== "technician") {
-      return res
-        .status(400)
-        .json({ message: "Only technicians can be added to a project" });
+      return res.status(400).json({ message: "Only technicians can be added to a project" });
     }
 
     const project = await Project.findById(projectId);
@@ -99,14 +89,14 @@ router.post("/:projectId/add-member", verifyToken, async (req, res) => {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    // Check if already assigned
-    if (project.assignedTo.includes(user._id)) {
-      return res
-        .status(400)
-        .json({ message: "Technician already assigned to this project" });
+    if (!Array.isArray(project.assignedTo)) {
+      project.assignedTo = [];
     }
 
-    // Add technician to project
+    if (project.assignedTo.includes(user._id)) {
+      return res.status(400).json({ message: "Technician already assigned to this project" });
+    }
+
     project.assignedTo.push(user._id);
     await project.save();
 
@@ -115,4 +105,5 @@ router.post("/:projectId/add-member", verifyToken, async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+
 module.exports = router;
